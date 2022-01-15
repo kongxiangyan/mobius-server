@@ -1,7 +1,7 @@
 {
-  "name": "@we-mobius/library-template",
+  "name": "@we-mobius/mobius-server",
   "version": "0.1.0",
-  "description": "📋 Template for mobius flavor server project.",
+  "description": "☁ Server side facilities built on Mobius Utils.",
   "type": "module",
   "typings": "./typings/main.d.ts",
   "types": "./typings/main.d.ts",
