@@ -1,3 +1,3 @@
-import * as MobiusLib from './ts/index'
+import * as MobiusServer from './ts/index'
 
-console.error(MobiusLib)
+console.info(MobiusServer)
