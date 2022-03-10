@@ -1,36 +1,17 @@
 import {
   Data, ReplayDataMediator,
   replayWithLatest,
-  createGeneralDriver, useGeneralDriver_,
-  v1UUID
+  createGeneralDriver, useGeneralDriver_
 } from '../libs/mobius-utils'
 import { Route } from '../libs/mobius-services'
+import { ClientRequest } from '../utils/client-request'
+import { ServerResponse } from '../utils/server-response'
+import { Communication } from '../utils/communication'
+import { CommunicationManager } from '../utils/communication-manager'
 import http from 'http'
 
 import type { DriverOptions, DriverLevelContexts, DriverSingletonLevelContexts, DriverInstance } from '../libs/mobius-utils'
 import type { AppRouteDriverInstance } from '../libs/mobius-services'
-
-/**
- * @return Whether the response is handled successfully.
- */
-export type ResponseHandler = (response: http.ServerResponse) => boolean
-/**
- *
- */
-export interface ClientRequest {
-  id: string
-  request: http.IncomingMessage
-}
-export interface ServerResponse {
-  id: string
-  responseHandler: ResponseHandler
-}
-interface CommunicationRecord {
-  status: 'unclaimed' | 'pending' | 'handled'
-  request: http.IncomingMessage
-  response: http.ServerResponse
-}
-type Communications = Map<string, CommunicationRecord>
 
 export interface ClientDriverOptions extends DriverOptions {
   port?: number
@@ -46,7 +27,7 @@ export interface ClientDriverSingletonLevelContexts extends DriverSingletonLevel
   outputs: {
     server: ReplayDataMediator<http.Server>
     request: ReplayDataMediator<ClientRequest>
-    currentRoute: Data<Route<ClientRequest>>
+    currentRoute: Data<Route<Communication>>
   }
 }
 export type ClientDriverInstance = ClientDriverSingletonLevelContexts
@@ -66,7 +47,7 @@ createGeneralDriver<ClientDriverOptions, DriverLevelContexts, ClientDriverSingle
     const serverD = Data.empty<http.Server>()
     const clientRequestD = Data.empty<ClientRequest>()
     const serverResponseD = Data.empty<ServerResponse>()
-    const currentRouteD = Data.empty<Route<ClientRequest>>()
+    const currentRouteD = Data.empty<Route<Communication>>()
     const claimRequestD = Data.empty<string>()
 
     const serverRD = replayWithLatest(1, serverD)
@@ -80,46 +61,41 @@ createGeneralDriver<ClientDriverOptions, DriverLevelContexts, ClientDriverSingle
     }
 
     const { appRouteDriver: { inputs: { redirect } } } = options
-    const communications: Communications = new Map()
+    const communicationManager = CommunicationManager.empty()
 
     const server = http.createServer((request, response) => {
-      const id = v1UUID()
-      const clientRequest = { id, request }
-      communications.set(id, { status: 'unclaimed', request, response })
+      const clientRequest = ClientRequest.of(request)
+      const serverResponse = ServerResponse.of(response)
+      const communication = Communication.of(clientRequest, serverResponse)
+      communicationManager.push(communication)
 
       clientRequestD.mutate(() => clientRequest)
       const { url } = request
       if (url === undefined) {
-        //
+        // 没有 url 的请求将被视作非法请求，不进行任何处理
       } else {
         redirect.mutate(() => url)
-        currentRouteD.mutate(() => Route.of(url).setPayload(clientRequest))
+        currentRouteD.mutate(() => Route.of(url).setPayload(communication))
       }
     })
     serverD.mutate(() => server)
 
-    claimRequestD.subscribeValue(requestID => {
-      const communication = communications.get(requestID)
-      if (communication !== undefined && communication.status === 'unclaimed') {
-        communication.status = 'pending'
+    claimRequestD.subscribeValue(communicationID => {
+      const communication = communicationManager.getCommunicationByID(communicationID)
+      if (communication !== undefined) {
+        communication.claim()
+        communication.pending()
       }
     })
     serverResponseD.subscribeValue(serverResponse => {
-      const { id, responseHandler } = serverResponse
-      const communicationRecord = communications.get(id)
-      if (communicationRecord === undefined || communicationRecord.status === 'handled') {
+      const communication = communicationManager.getCommunicationByID(serverResponse.id)
+      if (communication === undefined || communication.isResolved()) {
         // 如果相应的请求已经被处理过了，那么就不再处理了。
         // 即相同 id 的请求，如果被多个分支认领，则只会接收第一个处理完的回应，后续回应都会被丢弃。
       } else {
-        const { response } = communicationRecord
-        const responseHandleResult = responseHandler(response)
-        if (!responseHandleResult) {
-          response.statusCode = 200
-          response.setHeader('Content-Type', 'text/html')
-          response.end('<h1>Sorry, unexpected error happened, please try again later.</h1>')
-        }
-        communicationRecord.status = 'handled'
-        communications.delete(id)
+        serverResponse.sendResponse()
+        communication.resolve()
+        communicationManager.remove(communication)
       }
     })
 
