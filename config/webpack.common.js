@@ -21,7 +21,9 @@ export const getCommonConfig = () => ({
       TS$: rootResolvePath('src/ts/index.ts'),
       Statics: rootResolvePath('src/statics/'),
       Images: rootResolvePath('src/statics/images/'),
-      Styles: rootResolvePath('src/statics/styles/')
+      Styles: rootResolvePath('src/statics/styles/'),
+
+      graphql$: rootResolvePath('node_modules/graphql/index.js')
     },
     symlinks: false
   }
