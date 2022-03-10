@@ -1,5 +1,5 @@
 import {
-  Data, ReplayDataMediator,
+  Data,
   replayWithLatest,
   createGeneralDriver, useGeneralDriver_
 } from '../libs/mobius-utils'
@@ -10,11 +10,20 @@ import { Communication } from '../utils/communication'
 import { CommunicationManager } from '../utils/communication-manager'
 import http from 'http'
 
-import type { DriverOptions, DriverLevelContexts, DriverSingletonLevelContexts, DriverInstance } from '../libs/mobius-utils'
+import type {
+  ReplayDataMediator,
+  DriverOptions, DriverLevelContexts, DriverSingletonLevelContexts, DriverInstance
+} from '../libs/mobius-utils'
 import type { AppRouteDriverInstance } from '../libs/mobius-services'
 
 export interface ClientDriverOptions extends DriverOptions {
+  /**
+   * @default 3000
+   */
   port?: number
+  /**
+   * @default false
+   */
   isAutoStart?: boolean
   appRouteDriver: AppRouteDriverInstance
 }
@@ -52,13 +61,6 @@ createGeneralDriver<ClientDriverOptions, DriverLevelContexts, ClientDriverSingle
 
     const serverRD = replayWithLatest(1, serverD)
     const requestRD = replayWithLatest(1, clientRequestD)
-
-    interface DriverStates {
-      started: boolean
-    }
-    const driverStates: DriverStates = {
-      started: false
-    }
 
     const { appRouteDriver: { inputs: { redirect } } } = options
     const communicationManager = CommunicationManager.empty()
@@ -99,6 +101,13 @@ createGeneralDriver<ClientDriverOptions, DriverLevelContexts, ClientDriverSingle
       }
     })
 
+    interface DriverStates {
+      started: boolean
+    }
+    const driverStates: DriverStates = {
+      started: false
+    }
+
     const { port, isAutoStart } = options
     const startServer = (): void => {
       server.listen(port, () => {
@@ -134,4 +143,4 @@ createGeneralDriver<ClientDriverOptions, DriverLevelContexts, ClientDriverSingle
 /**
  * @see {@link makeClientDriver}
  */
-export const useClientDriver_ = useGeneralDriver_(makeClientDriver)
+export const useClientDriver = useGeneralDriver_(makeClientDriver)
