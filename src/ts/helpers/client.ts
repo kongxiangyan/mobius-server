@@ -4,7 +4,7 @@ import {
   createGeneralDriver, useGeneralDriver_
 } from '../libs/mobius-utils'
 import { Route } from '../libs/mobius-services'
-import { ClientRequest } from '../utils/client-request'
+import { ClientRequest } from '../utils/client-request/client-request'
 import { ServerResponse } from '../utils/server-response'
 import { Communication } from '../utils/communication'
 import { CommunicationManager } from '../utils/communication-manager'

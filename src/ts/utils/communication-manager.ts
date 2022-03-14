@@ -1,6 +1,6 @@
 import { isString } from '../libs/mobius-utils'
 
-import type { ClientRequest } from './client-request'
+import type { ClientRequest } from './client-request/client-request'
 import type { ServerResponse } from './server-response'
 import type { Communication } from './communication'
 
