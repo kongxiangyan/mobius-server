@@ -11,11 +11,14 @@ import type {
 import type {
   Route
 } from '../libs/mobius-services'
-import type { ServerResponse } from '../utils/server-response'
+import type { ServerResponse } from '../utils/server-response/server-response'
 import type { Communication } from '../utils/communication'
 
 export interface GraphQLServerDriverOptions extends DriverOptions {
-  graphqlServerOrigin?: string
+  /**
+   * @default 'http://localhost:4000'
+   */
+  graphQLServerOrigin?: string
 }
 export interface GraphQLServerDriverSingletonLevelContexts extends DriverSingletonLevelContexts {
   inputs: {
@@ -27,82 +30,118 @@ export interface GraphQLServerDriverSingletonLevelContexts extends DriverSinglet
 }
 export type GraphQLServerDriverInstance = GraphQLServerDriverSingletonLevelContexts
 
-// 接收到 Mobius Server 请求之后，转换回原始请求参数，将原始请求参数转发给 Apollo Server，然后将 Apollo Server 的响应转发到 Mobius Server
+/**
+ * 接收到 Mobius Server 请求之后，将请求转发给 Apollo Server，然后将 Apollo Server 的响应转发到 Mobius Server。
+ *
+ * @see {@link https://graphql.org/learn/serving-over-http/}
+ */
 export const makeGraphQLServerDriver =
 createGeneralDriver<GraphQLServerDriverOptions, DriverLevelContexts, GraphQLServerDriverSingletonLevelContexts, GraphQLServerDriverInstance>({
   defaultOptions: {
-    graphqlServerOrigin: 'http://localhost:4000'
+    graphQLServerOrigin: 'http://localhost:4000'
   },
   prepareSingletonLevelContexts: (options, driverLevelContexts) => {
-    const { graphqlServerOrigin } = options
+    const { graphQLServerOrigin } = options
 
     const routeD = Data.empty<Route<Communication>>()
     const responseD = Data.empty<ServerResponse>()
 
-    const getD = filterT(({ record, payload }) => {
-      console.log(`[GraphQLServerDriver][GET] ${record.partialUrl}`)
+    const getD = filterT(({ payload }) => {
       return payload === undefined ? false : payload.clientRequest.method === 'GET'
     }, routeD)
-    const postD = filterT(({ record, payload }) => {
-      console.log(`[GraphQLServerDriver][POST] ${record.partialUrl}`)
+    const postD = filterT(({ payload }) => {
       return payload === undefined ? false : payload.clientRequest.method === 'POST'
     }, routeD)
 
     const handleGetRequest = async (route: Route<Communication>): Promise<void> => {
+      console.group('[GraphQLServerDriver][GET]:')
+
       const { record, payload } = route
-      if (payload === undefined) return
-      console.log(`[GraphQLServerDriver][GET] valid request ${record.partialUrl}`)
-      console.log('\r\n')
+      if (payload === undefined) {
+        console.log(`invalid request: ${record.partialUrl}`)
+        return
+      }
+      console.log(`valid request: ${record.partialUrl}`)
+
       const { serverResponse } = payload
-      const graphqlRequest = Biutor.of({
-        resource: `${graphqlServerOrigin}${record.partialUrl}`,
+      const graphQLRequest = Biutor.of({
+        resource: `${graphQLServerOrigin}${record.partialUrl}`,
         method: 'GET'
       })
-      const data = await graphqlRequest.sendRequest().data
-      serverResponse.setResponseHandler((response) => {
-        response.statusCode = 200
-        response.setHeader('Content-Type', 'application/json')
-        response.end(JSON.stringify(data))
-        return true
-      })
+      const graphQLResponse = await graphQLRequest.sendRequest().response
+      serverResponse.setResponseData(graphQLResponse)
       responseD.mutate(() => serverResponse)
+
+      console.log('\r\n')
+      console.groupEnd()
     }
     getD.subscribeValue((route) => {
-      handleGetRequest(route).catch(console.error)
+      handleGetRequest(route).catch((error) => {
+        console.log(`[GraphQLServerDriver][GET] request: ${route.record.partialUrl}`)
+        console.log('[GraphQLServerDriver][GET] Unexpected error occured when handling get request', error, '\r\n')
+      })
     })
 
     const handlePostRequest = async (route: Route<Communication>): Promise<void> => {
+      console.group('[GraphQLServerDriver][POST]:')
       const { record, payload } = route
-      if (payload === undefined) return
-      console.log(`[GraphQLServerDriver][POST] valid request ${record.partialUrl}`)
+      if (payload === undefined) {
+        console.log(`invalid request: ${record.partialUrl}`)
+        return
+      }
+      console.log(`valid request ${record.partialUrl}`)
       const { clientRequest, serverResponse } = payload
 
       const headers = clientRequest.headers
       const preparedHeaders = {
         'Content-Type': 'application/json'
       }
+
       const body = await clientRequest.body
-      console.log(body)
-      console.log('\r\n')
-      const preparedBody = headers['content-type'] === 'application/graphql' ? JSON.stringify({ query: body }) : body
+
+      let bodyParams
+      try {
+        // If the "application/graphql" Content-Type header is present,
+        // treat the HTTP POST body contents as the GraphQL query string.
+        if (headers['content-type'] === 'application/graphql') {
+          bodyParams = { query: body }
+        } else {
+          bodyParams = JSON.parse(body)
+        }
+      } catch (e) {
+        bodyParams = {}
+      }
+      const queryParams: Record<string, any> = {}
+      queryParams.query = record.queryObj.query
+      try {
+        queryParams.variables = JSON.parse(record.queryObj.variables)
+      } catch (e) {
+        queryParams.variables = {}
+      }
+      // If the "query" query string parameter is present (as in the GET example above),
+      // it should be parsed and handled in the same way as the HTTP GET case.
+      const preparedParams = { ...queryParams, ...bodyParams }
+      const preparedBody: string = JSON.stringify(preparedParams)
+      console.log('request body: ', preparedBody)
 
       const graphqlRequest = Biutor.of({
-        resource: `${graphqlServerOrigin}${record.partialUrl}`,
+        resource: `${graphQLServerOrigin}${record.partialUrl}`,
         method: 'POST',
         headers: preparedHeaders,
         body: preparedBody
       })
-      const data = await graphqlRequest.sendRequest().data
-      serverResponse.setResponseHandler((response) => {
-        response.statusCode = 200
-        response.setHeader('Content-Type', 'application/json')
-        response.end(JSON.stringify(data))
-        return true
-      })
+      const graphQLResponse = await graphqlRequest.sendRequest().response
+      serverResponse.setResponseData(graphQLResponse)
       responseD.mutate(() => serverResponse)
+
+      console.log('\r\n')
+      console.groupEnd()
     }
     postD.subscribeValue((route) => {
-      handlePostRequest(route).catch(console.error)
+      handlePostRequest(route).catch((error) => {
+        console.log(`[GraphQLServerDriver][POST] request: ${route.record.partialUrl}`)
+        console.log('[GraphQLServerDriver][POST] Unexpected error occured when handling post request', error, '\r\n')
+      })
     })
 
     return {
