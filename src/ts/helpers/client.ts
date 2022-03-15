@@ -5,7 +5,7 @@ import {
 } from '../libs/mobius-utils'
 import { Route } from '../libs/mobius-services'
 import { ClientRequest } from '../utils/client-request/client-request'
-import { ServerResponse } from '../utils/server-response'
+import { ServerResponse } from '../utils/server-response/server-response'
 import { Communication } from '../utils/communication'
 import { CommunicationManager } from '../utils/communication-manager'
 import http from 'http'

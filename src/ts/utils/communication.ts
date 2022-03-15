@@ -1,7 +1,7 @@
 import { v1UUID } from '../libs/mobius-utils'
 
 import type { ClientRequest } from './client-request/client-request'
-import type { ServerResponse } from './server-response'
+import type { ServerResponse } from './server-response/server-response'
 
 export type CommunicationStatus = 'unclaimed' | 'claimed' | 'pending' | 'resolved'
 
