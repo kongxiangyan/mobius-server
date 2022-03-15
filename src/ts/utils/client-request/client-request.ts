@@ -14,10 +14,6 @@ export class ClientRequest {
   }
 
   /**
-   * 元信息
-   */
-
-  /**
    *
    */
   get id (): string { return this._id }
@@ -42,10 +38,6 @@ export class ClientRequest {
       this._isRegistered = true
     }
   }
-
-  /**
-   * 功能性信息
-   */
 
   /**
    * @see {@link http.IncomingMessage.method}
