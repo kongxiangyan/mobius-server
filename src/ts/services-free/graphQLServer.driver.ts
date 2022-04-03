@@ -109,6 +109,7 @@ createGeneralDriver<GraphQLServerDriverOptions, DriverLevelContexts, GraphQLServ
           bodyParams = JSON.parse(body)
         }
       } catch (e) {
+        console.log('Parse request body failed!')
         bodyParams = {}
       }
       const queryParams: Record<string, any> = {}
