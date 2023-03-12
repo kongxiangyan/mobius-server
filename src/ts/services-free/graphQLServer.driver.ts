@@ -59,6 +59,8 @@ createGeneralDriver<GraphQLServerDriverOptions, DriverLevelContexts, GraphQLServ
       const { record, payload } = route
       if (payload === undefined) {
         console.log(`invalid request: ${record.partialUrl}`)
+        console.log('\r\n')
+        console.groupEnd()
         return
       }
       console.log(`valid request: ${record.partialUrl}`)
@@ -87,6 +89,8 @@ createGeneralDriver<GraphQLServerDriverOptions, DriverLevelContexts, GraphQLServ
       const { record, payload } = route
       if (payload === undefined) {
         console.log(`invalid request: ${record.partialUrl}`)
+        console.log('\r\n')
+        console.groupEnd()
         return
       }
       console.log(`valid request ${record.partialUrl}`)
